@@ -25,7 +25,7 @@ class BaseModel(nn.Module):
         score = self.score_layer(torch.concat([enc_pool, essay_readability, essay_features], dim=-1))
         # score = self.score_layer(enc_pool)
         mask = self._get_mask(norm_scores)
-        loss = self.criterion(score * mask, norm_scores)
+        loss = self.criterion(score[mask], norm_scores[mask])
         
         return CustomOutput(
             loss=loss,
@@ -35,4 +35,4 @@ class BaseModel(nn.Module):
     def _get_mask(self, target):
         mask = torch.ones(*target.size(), device=target.device)
         mask.data.masked_fill_((target == -1), 0)
-        return mask
+        return mask.to(torch.bool)
