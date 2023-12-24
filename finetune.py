@@ -8,7 +8,7 @@ from dataset import get_asap_dataset
 from dataset.collator import ASAPDataCollator
 from metrics import kappa
 from model.base import BaseModel
-from utils.general_utils import seed_all
+from utils.general_utils import save_report, seed_all
 
 
 def train(
@@ -20,7 +20,7 @@ def train(
     batch_size: int = 8,
     gradient_accumulation: int = 1,
     learning_rate: float = 5e-5,
-    weight_decay: float = 0.05,
+    weight_decay: float = 0.01,
     max_length: int = 512
 ):
 
@@ -41,14 +41,14 @@ def train(
         predictions, labels = p.predictions, p.label_ids
         mask = (labels != -1)
         predictions, labels = predictions[mask], labels[mask]
-        qwk = kappa(predictions, labels)
+        qwk = kappa(predictions, labels, weights="quadratic")
         
         return {"qwk": qwk}
     
     
     training_args = TrainingArguments(
         output_dir=f"ckpts/{experiment_tag}/prompt_{test_prompt_id}",
-        num_train_epochs=10,
+        num_train_epochs=num_train_epochs,
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
         gradient_accumulation_steps=gradient_accumulation,
@@ -77,7 +77,9 @@ def train(
     )
     
     trainer.train()
-
+    results = trainer.evaluate(test_dataset)
+    print(results)
+    save_report(results, output_dir)
 
 if __name__ == "__main__":
     fire.Fire(train)

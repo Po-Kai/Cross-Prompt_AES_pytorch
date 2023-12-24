@@ -1,4 +1,5 @@
 import os
+import json
 import random
 
 import numpy as np
@@ -244,3 +245,8 @@ def seed_all(seed_value):
         torch.cuda.manual_seed_all(seed_value)  # gpu vars
         torch.backends.cudnn.deterministic = True  # needed
         torch.backends.cudnn.benchmark = False
+
+
+def save_report(evaluate_results, save_dir):
+    with open(os.path.join(save_dir, "evaluate_report.txt"), "w") as writer:
+        json.dump(evaluate_results, writer)
