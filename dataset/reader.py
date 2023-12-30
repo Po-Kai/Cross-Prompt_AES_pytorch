@@ -6,28 +6,11 @@ import pandas as pd
 from sklearn import preprocessing
 from tqdm import tqdm
 
+from .preprocess import text_preprocess
 from utils.general_utils import (
     get_scaled_down_scores,
     get_score_vector_positions,
 )
-
-
-def text_preprocess(text):
-    text = text.strip()
-    text = re.sub(r"https?://\S+", "[URL]", text)
-    text = re.sub(r"-?\d+(\.\d+)?", "[NUM]", text)
-    text = re.sub(r"\s{2,}", " ", text)
-    text = text.replace(u'"', u"")
-    text = text.replace("�", "")
-    text = re.sub(r"@([A-Z]+)[0-9]+", r"[\1]", text)  # @CAP1 -> [CAP]
-    
-    if "..." in text:
-        text = re.sub(r"\.{3,}(\s+\.{3,})*", "...", text)
-    if "??" in text:
-        text = re.sub(r"\?{2,}(\s+\?{2,})*", "?", text)
-    if "!!" in text:
-        text = re.sub(r"\!{2,}(\s+\!{2,})*", "!", text)
-    return text
 
 
 def get_readability_features(readability_path):

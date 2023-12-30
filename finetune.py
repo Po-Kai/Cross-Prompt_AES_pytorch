@@ -1,14 +1,16 @@
 #!/usr/bin/env python
 # coding: utf-8
+from datasets import concatenate_datasets
 import fire
 import torch
-from transformers import AutoModel, AutoTokenizer, TrainingArguments, Trainer
+from transformers import AutoTokenizer, TrainingArguments
 
 from dataset import get_asap_dataset
 from dataset.collator import ASAPDataCollator
-from metrics import kappa
-from model.base import BaseModel
+from model.base_model import BaseModel
+from trainers import AESTrainer
 from utils.general_utils import save_report, seed_all
+from utils.multitask_evaluator_all_attributes import Evaluator
 
 
 def train(
@@ -23,31 +25,22 @@ def train(
     weight_decay: float = 0.01,
     max_length: int = 512
 ):
-
     seed_all(seed)
-    encoder = AutoModel.from_pretrained(model_path)
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
-    model = BaseModel(encoder=encoder)
     
+    model = BaseModel(model_path=model_path)
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
     train_dataset, dev_dataset, test_dataset = get_asap_dataset(
         test_prompt_id=test_prompt_id, 
         tokenizer=tokenizer,
         max_length=max_length
     )
+    eval_dataset = concatenate_datasets([dev_dataset, test_dataset])
     data_collator = ASAPDataCollator(tokenizer=tokenizer)
+    evaluator = Evaluator(dev_dataset, test_dataset, seed)
     
-    
-    def compute_metrics(p):
-        predictions, labels = p.predictions, p.label_ids
-        mask = (labels != -1)
-        predictions, labels = predictions[mask], labels[mask]
-        qwk = kappa(predictions, labels, weights="quadratic")
-        
-        return {"qwk": qwk}
-    
-    
+    output_dir = f"ckpts/{experiment_tag}/prompt_{test_prompt_id}"
     training_args = TrainingArguments(
-        output_dir=f"ckpts/{experiment_tag}/prompt_{test_prompt_id}",
+        output_dir=output_dir,
         num_train_epochs=num_train_epochs,
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
@@ -61,25 +54,23 @@ def train(
         load_best_model_at_end=True, 
         fp16=True,
         remove_unused_columns=True,
-        metric_for_best_model="eval_qwk",
+        metric_for_best_model="eval_kappa",
         greater_is_better=True,
         seed=seed,
         data_seed=seed,
     )
-    
-    trainer = Trainer(
+            
+    trainer = AESTrainer(
         model=model,
         args=training_args,
         data_collator=data_collator,
         train_dataset=train_dataset,
-        eval_dataset=dev_dataset,
-        compute_metrics=compute_metrics
+        eval_dataset=eval_dataset,
+        evaluator=evaluator
     )
     
     trainer.train()
-    results = trainer.evaluate(test_dataset)
-    print(results)
-    save_report(results, output_dir)
+
 
 if __name__ == "__main__":
     fire.Fire(train)
